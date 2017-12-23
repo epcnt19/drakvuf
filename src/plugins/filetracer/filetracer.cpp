@@ -124,6 +124,8 @@
 
 static event_response_t objattr_read(drakvuf_t drakvuf, drakvuf_trap_info_t *info, addr_t attr)
 {
+	printf("function objattr_read\n");
+
     filetracer *f = (filetracer*)info->trap->data;
     vmi_instance_t vmi = drakvuf_lock_and_get_vmi(drakvuf);
 

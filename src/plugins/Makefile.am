@@ -106,6 +106,10 @@ sources =
 
 ###############################################################################
 
+if PLUGIN_MSRMON
+sources += msrmon/msrmon.cpp
+endif
+
 if PLUGIN_SYSCALLS
 sources += syscalls/syscalls.cpp
 endif

@@ -114,6 +114,7 @@
 #include "debugmon/debugmon.h"
 #include "cpuidmon/cpuidmon.h"
 #include "socketmon/socketmon.h"
+#include "msrmon/msrmon.h"
 
 drakvuf_plugins::drakvuf_plugins(const drakvuf_t drakvuf, output_format_t output, os_t os)
 {
@@ -192,6 +193,11 @@ int drakvuf_plugins::start(const drakvuf_plugin_t plugin_id,
             case PLUGIN_SOCKETMON:
                 this->plugins[plugin_id] = new socketmon(this->drakvuf, config, this->output);
                 break;
+#endif
+#ifdef ENABLE_PLUGIN_MSRMON
+        case PLUGIN_MSRMON:
+            this->plugins[plugin_id] = new msrmon(this->drakvuf, config, this->output);
+            break;
 #endif
             default:
                 break;

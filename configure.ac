@@ -119,6 +119,16 @@ fi
 
 ######################################################
 
+AC_ARG_ENABLE([plugin_msrmon],
+  [AS_HELP_STRING([--disable-plugin-msrmon],
+    [Enable the MSRMON example plugin @<:@yes@:>@])],
+  [plugin_msrmon="$enableval"],
+  [plugin_msrmon="yes"])   
+AM_CONDITIONAL([PLUGIN_MSRMON], [test x$plugin_msrmon = xyes])
+if test x$plugin_msrmon = xyes; then
+  AC_DEFINE_UNQUOTED(ENABLE_PLUGIN_MSRMON, 1, "")
+fi
+
 AC_ARG_ENABLE([plugin_syscalls],
   [AS_HELP_STRING([--disable-plugin-syscalls],
     [Enable the syscall tracing plugin @<:@yes@:>@])],
@@ -385,4 +395,6 @@ SSDTmon:    $plugin_ssdtmon
 CPUIDmon:   $plugin_cpuidmon
 Debugmon:   $plugin_debugmon
 Socketmon:  $plugin_socketmon
+
+MSRmon:   $plugin_msrmon
 -------------------------------------------------------------------------------])
