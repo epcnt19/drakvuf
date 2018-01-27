@@ -20,13 +20,32 @@
 
 event_response_t checkidt_cb(drakvuf_t drakvuf,drakvuf_trap_info* info){
 	idtmon* s = (idtmon*)info->trap->data;
-	reg_t idtr;	
+	reg_t idtr_base,idtr_limit;
+	addr_t int_addr;
+	
+	uint16_t addr1,addr2;
+	uint32_t addr3;
+	int entry_num = 0;
 
 	vmi_instance_t vmi = drakvuf_lock_and_get_vmi(drakvuf);
-	vmi_get_vcpureg(vmi,&idtr,IDTR_BASE,info->vcpu);
+	vmi_get_vcpureg(vmi,&idtr_base,IDTR_BASE,info->vcpu);
+	vmi_get_vcpureg(vmi,&idtr_limit,IDTR_LIMIT,info->vcpu);
 	drakvuf_release_vmi(drakvuf);
 
-	printf("[IDTR] idtr,0x%" PRIu64 ",0x%" PRIx64 "\n",info->vcpu,idtr);
+	entry_num = idtr_limit/16;
+	
+	printf("[IDTR] idtr_base,0x%" PRIu64 ",0x%" PRIx64 "\n",info->vcpu,idtr_base);
+	printf("[IDTR] idtr_limit,0x%" PRIu64 ",0x%" PRIx64 "\n",info->vcpu,idtr_limit);
+
+	for(int i=0;i<entry_num;i++){
+		vmi_read_16_va(vmi,idtr_base+i*16,0,&addr1);
+		vmi_read_16_va(vmi,idtr_base+i*16+6,0,&addr2);
+		vmi_read_32_va(vmi,idtr_base+i*16+8,0,&addr3);
+		int_addr = ((addr_t)addr3 << 32) + ((addr_t)addr2 << 16) + ((addr_t)addr1);
+		printf("[IDTR] entry %d,0x%" PRIx64 "\n",i,int_addr);
+	}
+
+	return 0;
 }
 
 
