@@ -33,7 +33,6 @@ event_response_t checkidt_cb(drakvuf_t drakvuf,drakvuf_trap_info* info){
 	drakvuf_release_vmi(drakvuf);
 
 	entry_num = idtr_limit/16;
-	
 	printf("[IDTR] idtr_base,0x%" PRIu64 ",0x%" PRIx64 "\n",info->vcpu,idtr_base);
 	printf("[IDTR] idtr_limit,0x%" PRIu64 ",0x%" PRIx64 "\n",info->vcpu,idtr_limit);
 
