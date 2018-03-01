@@ -106,8 +106,8 @@ sources =
 
 ###############################################################################
 
-if PLUGIN_MSRMON
-sources += msrmon/msrmon.cpp
+if PLUGIN_IDTMON
+sources += idtmon/idtmon.cpp
 endif
 
 if PLUGIN_SYSCALLS

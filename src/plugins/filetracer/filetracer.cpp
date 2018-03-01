@@ -125,12 +125,10 @@
 
 static unicode_string_t* read_wchar_array(vmi_instance_t vmi, const access_context_t* ctx, size_t length)
 {
-<<<<<<< HEAD
-	printf("function objattr_read\n");
-
-    filetracer *f = (filetracer*)info->trap->data;
-=======
-    unicode_string_t* us = (unicode_string_t*)g_malloc0(sizeof(unicode_string_t));
+	//printf("function objattr_read\n");
+    //filetracer *f = (filetracer*)info->trap->data;
+    
+	unicode_string_t* us = (unicode_string_t*)g_malloc0(sizeof(unicode_string_t));
     if ( !us )
         return NULL;
 
