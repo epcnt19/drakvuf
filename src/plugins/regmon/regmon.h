@@ -62,7 +62,7 @@
  * be included as well.  This license is incompatible with some other open *
  * source licenses as well.  In some cases we can relicense portions of    *
  * DRAKVUF or grant special permissions to use it in other open source     *
- * software.  Please contact tamas@tklengyel.com with any such             *
+ * software.  Please contact tamas.k.lengyel@gmail.com with any such       *
  * requests.  Similarly, we don't incorporate incompatible open source     *
  * software into Covered Software without special permission from the      *
  * copyright holders.                                                      *
@@ -102,174 +102,35 @@
  *                                                                         *
  ***************************************************************************/
 
-/*
- * Take files from <in folder> and place them into folders under <queue folder>.
- * Folders in <queue folder> need to be in a format <queue_name>_<queue_capacity>,
- * such as "testqueue_10". This will result in the distributor placing 10 files
- * into that folder before looking at the next queue (if any).
- */
+#ifndef REGMON_H
+#define REGMON_H
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <inttypes.h>
-#include <stdbool.h>
-#include <string.h>
-#include <unistd.h>
-#include <glib.h>
-#include <dirent.h>
-#include <errno.h>
-#include <sys/inotify.h>
-#include <time.h>
-#include <poll.h>
+#include "plugins/private.h"
+#include "plugins/plugins.h"
 
-static const char* in_folder;
-static const char* queue_folder;
-
-int main(int argc, char** argv)
+class regmon: public plugin
 {
-    DIR* indir, *qdir;
-    struct dirent* inent, *qdent;
-    uint64_t processed = 0, total_processed = 0, jobs = 0;
-    int ret = 0;
-    uint64_t limit = 0;
-
-    if (argc < 3)
+public:
+    drakvuf_trap_t traps[14] =
     {
-        printf("Not enough arguments: %i!\n", argc);
-        printf("%s <in folder> <queue folder> <optional limit>\n", argv[0]);
-        return 1;
-    }
-
-    in_folder = argv[1];
-    queue_folder = argv[2];
-
-    if ( argc == 4 )
-        limit = strtoull(argv[3], 0, 10);
-
-    int fd = inotify_init();
-    int wd = inotify_add_watch(fd, in_folder, IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE);
-    char buffer[sizeof(struct inotify_event) + NAME_MAX + 1];
-
-    struct pollfd pollfd =
-    {
-        .fd = fd,
-        .events = POLLIN
+        [0 ... 13] = {
+            .breakpoint.lookup_type = LOOKUP_PID,
+            .breakpoint.pid = 4,
+            .breakpoint.addr_type = ADDR_RVA,
+            .breakpoint.module = "ntoskrnl.exe",
+            .type = BREAKPOINT,
+            .data = (void*)this
+        }
     };
 
-    do
-    {
-        jobs = 0;
-        processed = 0;
+    page_mode_t pm;
+    output_format_t format;
 
-        if ((indir = opendir (in_folder)) != NULL)
-        {
-            while ((inent = readdir (indir)) != NULL)
-            {
-                if (!strcmp(inent->d_name, ".") || !strcmp(inent->d_name, ".."))
-                    continue;
+    addr_t objattr_name;
+    addr_t objattr_root;
 
-                jobs++;
+    regmon(drakvuf_t drakvuf, const void* config, output_format_t output);
+    ~regmon();
+};
 
-                if ((qdir = opendir (queue_folder)) != NULL)
-                {
-                    while ((qdent = readdir (qdir)) != NULL)
-                    {
-                        if (!strcmp(qdent->d_name, ".") || !strcmp(qdent->d_name, ".."))
-                            continue;
-
-                        if ( !g_strrstr(qdent->d_name, "_") )
-                            continue;
-
-                        gchar** qinfo = g_strsplit(qdent->d_name, "_", 2);
-                        int qsize = atoi(qinfo[1]), count = -1;
-                        DIR* q;
-                        struct dirent* qent;
-
-                        char* folder = g_malloc0(snprintf(NULL, 0, "%s/%s", queue_folder, qdent->d_name) + 1);
-                        sprintf(folder, "%s/%s", queue_folder, qdent->d_name);
-
-                        if ((q = opendir (folder)) != NULL)
-                        {
-                            count = 0;
-                            while ((qent = readdir (q)) != NULL)
-                                if ( strcmp(qent->d_name, ".") && strcmp(qent->d_name, "..") )
-                                    count++;
-                            closedir (q);
-                        }
-
-                        g_free(folder);
-
-                        if ( count >= 0 && qsize >= 0 && qsize > count )
-                        {
-                            char* command = g_malloc0(snprintf(NULL, 0, "mv %s/%s %s/%s/%s", in_folder, inent->d_name, queue_folder, qdent->d_name, inent->d_name) + 1);
-                            sprintf(command, "mv %s/%s %s/%s/%s", in_folder, inent->d_name, queue_folder, qdent->d_name, inent->d_name);
-                            printf("** MOVING FILE FOR PROCESSING: %s\n", command);
-                            g_spawn_command_line_sync(command, NULL, NULL, NULL, NULL);
-                            g_free(command);
-
-                            g_strfreev(qinfo);
-                            processed++;
-                            break;
-                        }
-
-                        g_strfreev(qinfo);
-                    }
-
-                    closedir(qdir);
-                }
-            }
-            closedir (indir);
-        }
-        else
-        {
-            printf("Failed to open target folder!\n");
-            ret = 1;
-            break;
-        }
-
-        if ( processed )
-        {
-            total_processed += processed;
-            printf("Distributed %lu samples (total %lu)\n", processed, total_processed);
-
-            if ( limit != 0 && total_processed >= limit )
-                break;
-        }
-
-        if ( !jobs )
-        {
-            printf("In folder is empty, waiting for file creation\n");
-
-            do
-            {
-                int rv = poll (&pollfd, 1, 1000);
-                if ( rv < 0 )
-                {
-                    printf("Error polling\n");
-                    ret = 1;
-                    break;
-                }
-                if ( rv > 0 && pollfd.revents & POLLIN )
-                {
-                    if ( read( fd, buffer, sizeof(struct inotify_event) + NAME_MAX + 1 ) < 0 )
-                    {
-                        printf("Error reading inotify event\n");
-                        ret = 1;
-                    }
-                    break;
-                }
-            }
-            while (!ret);
-        }
-        else if ( processed != jobs )
-            sleep(1);
-
-    }
-    while (!ret);
-
-    inotify_rm_watch( fd, wd );
-    close(fd);
-
-    printf("Finished processing %lu samples\n", total_processed);
-    return ret;
-}
+#endif

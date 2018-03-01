@@ -1,6 +1,6 @@
 /*********************IMPORTANT DRAKVUF LICENSE TERMS***********************
  *                                                                         *
- * DRAKVUF (C) 2014-2016 Tamas K Lengyel.                                  *
+ * DRAKVUF (C) 2014-2017 Tamas K Lengyel.                                  *
  * Tamas K Lengyel is hereinafter referred to as the author.               *
  * This program is free software; you may redistribute and/or modify it    *
  * under the terms of the GNU General Public License as published by the   *
@@ -130,7 +130,8 @@ static uint8_t bp = TRAP;
  * This function gets called from the singlestep event
  * after an int3 or a read event happens.
  */
-event_response_t vmi_reset_trap(vmi_instance_t vmi, vmi_event_t *event) {
+event_response_t vmi_reset_trap(vmi_instance_t vmi, vmi_event_t* event)
+{
     UNUSED(vmi);
     drakvuf_t drakvuf = event->data;
     PRINT_DEBUG("reset trap on vCPU %u, switching altp2m %u->%u\n", event->vcpu_id, event->slat_id, drakvuf->altp2m_idx);
@@ -144,15 +145,16 @@ event_response_t vmi_reset_trap(vmi_instance_t vmi, vmi_event_t *event) {
  * any free the wrapper.
  */
 static inline
-void process_free_requests(drakvuf_t drakvuf) {
+void process_free_requests(drakvuf_t drakvuf)
+{
     GHashTableIter i;
-    addr_t *key = NULL;
-    struct free_trap_wrapper *free_wrapper = NULL;
+    addr_t* key = NULL;
+    struct free_trap_wrapper* free_wrapper = NULL;
 
     ghashtable_foreach(drakvuf->remove_traps, i, key, free_wrapper)
     {
         remove_trap(drakvuf, free_wrapper->trap);
-        if(free_wrapper->free_routine)
+        if (free_wrapper->free_routine)
             free_wrapper->free_routine(free_wrapper->trap);
         g_free(free_wrapper);
     }
@@ -163,10 +165,11 @@ void process_free_requests(drakvuf_t drakvuf) {
 }
 
 /* Here we are in singlestep mode already and this is a singlstep cb */
-event_response_t post_mem_cb(vmi_instance_t vmi, vmi_event_t *event) {
+event_response_t post_mem_cb(vmi_instance_t vmi, vmi_event_t* event)
+{
     UNUSED(vmi);
     event_response_t rsp = 0;
-    struct memcb_pass *pass = event->data;
+    struct memcb_pass* pass = event->data;
     drakvuf_t drakvuf = pass->drakvuf;
     drakvuf->regs[event->vcpu_id] = event->x86_regs;
 
@@ -174,8 +177,9 @@ event_response_t post_mem_cb(vmi_instance_t vmi, vmi_event_t *event) {
      * The trap may have been removed since in another callback,
      * in which case we have nothing to do.
      */
-    struct wrapper *s = g_hash_table_lookup(drakvuf->memaccess_lookup_gfn, &pass->gfn);
-    if (!s) {
+    struct wrapper* s = g_hash_table_lookup(drakvuf->memaccess_lookup_gfn, &pass->gfn);
+    if (!s)
+    {
         PRINT_DEBUG("Post mem cb @ 0x%lx has been cleared\n", pass->gfn);
         goto done;
     }
@@ -183,17 +187,22 @@ event_response_t post_mem_cb(vmi_instance_t vmi, vmi_event_t *event) {
     PRINT_DEBUG("Post mem cb @ 0x%lx vCPU %u altp2m %u\n", pass->pa, event->vcpu_id, event->slat_id);
 
     drakvuf->in_callback = 1;
-    GSList *loop = s->traps;
-    while(loop) {
-        drakvuf_trap_t *trap = loop->data;
+    GSList* loop = s->traps;
+    while (loop)
+    {
+        drakvuf_trap_t* trap = loop->data;
 
-        if(trap->cb && trap->memaccess.type == POST &&
-           (trap->memaccess.access & pass->access))
+        if (trap->cb && trap->memaccess.type == POST &&
+                (trap->memaccess.access & pass->access))
         {
-            drakvuf_trap_info_t trap_info = {
+            drakvuf_trap_info_t trap_info =
+            {
                 .trap = trap,
-                .procname = pass->procname,
-                .userid = pass->userid,
+                .proc_data.base_addr = pass->proc_data.base_addr,
+                .proc_data.name      = pass->proc_data.name,
+                .proc_data.pid       = pass->proc_data.pid,
+                .proc_data.ppid      = pass->proc_data.ppid,
+                .proc_data.userid    = pass->proc_data.userid,
                 .trap_pa = pass->pa,
                 .regs = event->x86_regs,
                 .vcpu = event->vcpu_id,
@@ -216,32 +225,37 @@ event_response_t post_mem_cb(vmi_instance_t vmi, vmi_event_t *event) {
      * We need to copy the newly written page to the remapped gfn
      * and reapply all traps
      */
-    if ( pass->traps ) {
+    if ( pass->traps )
+    {
 
         PRINT_DEBUG("Re-copying remapped gfn\n");
 
         uint8_t backup[VMI_PS_4KB] = {0};
 
-        if ( VMI_FAILURE == vmi_read_pa(drakvuf->vmi, pass->remapped_gfn->o<<12, &backup, VMI_PS_4KB) ) {
+        if ( VMI_FAILURE == vmi_read_pa(drakvuf->vmi, pass->remapped_gfn->o<<12, VMI_PS_4KB, &backup, NULL) )
+        {
             fprintf(stderr, "Critical error in re-copying remapped gfn\n");
             drakvuf->interrupted = -1;
             return 0;
         }
 
-        if ( VMI_FAILURE == vmi_write_pa(drakvuf->vmi, pass->remapped_gfn->r<<12, &backup, VMI_PS_4KB) ) {
+        if ( VMI_FAILURE == vmi_write_pa(drakvuf->vmi, pass->remapped_gfn->r<<12, VMI_PS_4KB, &backup, NULL) )
+        {
             fprintf(stderr, "Critical error in re-copying remapped gfn\n");
             drakvuf->interrupted = -1;
             return 0;
         }
 
-        GSList *loop = pass->traps;
-        while(loop) {
+        GSList* loop = pass->traps;
+        while (loop)
+        {
 
-            addr_t *pa = loop->data;
+            addr_t* pa = loop->data;
             uint8_t test = 0;
-            struct wrapper *s = g_hash_table_lookup(drakvuf->breakpoint_lookup_pa, pa);
+            struct wrapper* s = g_hash_table_lookup(drakvuf->breakpoint_lookup_pa, pa);
 
-            if ( VMI_FAILURE == vmi_read_8_pa(drakvuf->vmi, *pa, &test) ) {
+            if ( VMI_FAILURE == vmi_read_8_pa(drakvuf->vmi, *pa, &test) )
+            {
                 fprintf(stderr, "Critical error in re-copying remapped gfn\n");
                 drakvuf->interrupted = -1;
                 return 0;
@@ -256,13 +270,13 @@ event_response_t post_mem_cb(vmi_instance_t vmi, vmi_event_t *event) {
             {
                 s->breakpoint.doubletrap = 0;
                 if ( VMI_FAILURE == vmi_write_8_pa(drakvuf->vmi,
-                                       (pass->remapped_gfn->r << 12) + (*pa & VMI_BIT_MASK(0,11)),
-                                       &bp) )
-                    {
-                        fprintf(stderr, "Critical error in re-copying remapped gfn\n");
-                        drakvuf->interrupted = -1;
-                        return 0;
-                    }
+                                                   (pass->remapped_gfn->r << 12) + (*pa & VMI_BIT_MASK(0,11)),
+                                                   &bp) )
+                {
+                    fprintf(stderr, "Critical error in re-copying remapped gfn\n");
+                    drakvuf->interrupted = -1;
+                    return 0;
+                }
             }
 
             loop = loop->next;
@@ -271,7 +285,7 @@ event_response_t post_mem_cb(vmi_instance_t vmi, vmi_event_t *event) {
     }
 
 done:
-    g_free(pass->procname);
+    g_free( (gpointer)pass->proc_data.name );
     g_free(pass);
     /* We switch back to the altp2m view no matter what */
     event->slat_id = drakvuf->altp2m_idx;
@@ -283,14 +297,16 @@ done:
 }
 
 /* This hits on the first access on a page, so not in singlestep yet */
-event_response_t pre_mem_cb(vmi_instance_t vmi, vmi_event_t *event) {
+event_response_t pre_mem_cb(vmi_instance_t vmi, vmi_event_t* event)
+{
     UNUSED(vmi);
     event_response_t rsp = 0;
     drakvuf_t drakvuf = event->data;
     drakvuf->regs[event->vcpu_id] = event->x86_regs;
 
-    struct wrapper *s = g_hash_table_lookup(drakvuf->memaccess_lookup_gfn, &event->mem_event.gfn);
-    if (!s) {
+    struct wrapper* s = g_hash_table_lookup(drakvuf->memaccess_lookup_gfn, &event->mem_event.gfn);
+    if (!s)
+    {
         PRINT_DEBUG("Event has been cleared for GFN 0x%lx but we are still in view %u\n",
                     event->mem_event.gfn, event->slat_id);
         return 0;
@@ -303,28 +319,33 @@ event_response_t pre_mem_cb(vmi_instance_t vmi, vmi_event_t *event) {
                 (event->mem_event.out_access & VMI_MEMACCESS_R) ? 'r' : '-',
                 (event->mem_event.out_access & VMI_MEMACCESS_W) ? 'w' : '-',
                 (event->mem_event.out_access & VMI_MEMACCESS_X) ? 'x' : '-'
-                );
+               );
 
-    char *procname = drakvuf_get_current_process_name(drakvuf, event->vcpu_id);
-    int64_t userid = drakvuf_get_current_process_userid(drakvuf, event->vcpu_id);
+    proc_data_t proc_data = {0};
 
-    GSList *loop = s->traps;
+    drakvuf_get_current_process_data( drakvuf, event->vcpu_id, &proc_data );
+
+    GSList* loop = s->traps;
     drakvuf->in_callback = 1;
-    while(loop) {
-        drakvuf_trap_t *trap = loop->data;
+    while (loop)
+    {
+        drakvuf_trap_t* trap = loop->data;
 
-        if(trap->cb && trap->memaccess.type == PRE &&
-           (trap->memaccess.access & event->mem_event.out_access))
+        if (trap->cb && trap->memaccess.type == PRE &&
+                (trap->memaccess.access & event->mem_event.out_access))
         {
-            drakvuf_trap_info_t trap_info = {
+            drakvuf_trap_info_t trap_info =
+            {
                 .trap = trap,
-                .procname = procname,
-                .userid = userid,
+                .proc_data.base_addr = proc_data.base_addr,
+                .proc_data.name      = proc_data.name,
+                .proc_data.pid       = proc_data.pid,
+                .proc_data.ppid      = proc_data.ppid,
+                .proc_data.userid    = proc_data.userid,
                 .trap_pa = pa,
                 .regs = event->x86_regs,
                 .vcpu = event->vcpu_id,
             };
-
             rsp |= trap->cb(drakvuf, &trap_info);
         }
 
@@ -332,20 +353,27 @@ event_response_t pre_mem_cb(vmi_instance_t vmi, vmi_event_t *event) {
     }
 
     /* We need to call breakpoint handlers registered for this physical address */
-    if (event->mem_event.out_access & VMI_MEMACCESS_X) {
-        struct wrapper *sbp = g_hash_table_lookup(drakvuf->breakpoint_lookup_pa, &pa);
+    if (event->mem_event.out_access & VMI_MEMACCESS_X)
+    {
+        struct wrapper* sbp = g_hash_table_lookup(drakvuf->breakpoint_lookup_pa, &pa);
 
-        if (sbp) {
+        if (sbp)
+        {
             PRINT_DEBUG("Simulated INT3 event vCPU %u altp2m:%u CR3: 0x%"PRIx64" PA=0x%"PRIx64" RIP=0x%"PRIx64"\n",
-                event->vcpu_id, event->slat_id, event->x86_regs->cr3, pa, event->x86_regs->rip);
+                        event->vcpu_id, event->slat_id, event->x86_regs->cr3, pa, event->x86_regs->rip);
 
             loop = sbp->traps;
-            while(loop) {
-                drakvuf_trap_t *trap = loop->data;
-                drakvuf_trap_info_t trap_info = {
+            while (loop)
+            {
+                drakvuf_trap_t* trap = loop->data;
+                drakvuf_trap_info_t trap_info =
+                {
                     .trap = trap,
-                    .procname = procname,
-                    .userid = userid,
+                    .proc_data.base_addr = proc_data.base_addr,
+                    .proc_data.name      = proc_data.name,
+                    .proc_data.pid       = proc_data.pid,
+                    .proc_data.ppid      = proc_data.ppid,
+                    .proc_data.userid    = proc_data.userid,
                     .trap_pa = pa,
                     .regs = event->x86_regs,
                     .vcpu = event->vcpu_id,
@@ -364,33 +392,40 @@ event_response_t pre_mem_cb(vmi_instance_t vmi, vmi_event_t *event) {
      */
     process_free_requests(drakvuf);
 
-     // Check if we have traps still active on this page
+    // Check if we have traps still active on this page
     s = g_hash_table_lookup(drakvuf->memaccess_lookup_gfn, &event->mem_event.gfn);
-    if (s) {
+    if (s)
+    {
         /*
          * There seems to be another trap still active
          * but it may already have another event queued that will clear it.
          */
-        struct memcb_pass *pass = g_malloc0(sizeof(struct memcb_pass));
+        struct memcb_pass* pass = g_malloc0(sizeof(struct memcb_pass));
         pass->drakvuf = drakvuf;
         pass->gfn = event->mem_event.gfn;
         pass->pa = pa;
         pass->access = event->mem_event.out_access;
-        pass->procname = procname;
-        pass->userid = userid;
+        pass->proc_data.base_addr = proc_data.base_addr;
+        pass->proc_data.name      = proc_data.name;
+        pass->proc_data.pid       = proc_data.pid;
+        pass->proc_data.ppid      = proc_data.ppid;
+        pass->proc_data.userid    = proc_data.userid;
 
-        if(!s->memaccess.guard2) {
+        if (!s->memaccess.guard2)
+        {
             event->slat_id = 0;
 
             /*
              * If this is a remapped gfn and the page is getting written, the remapped copy needs to be updated
              */
-            if ( event->mem_event.out_access & VMI_MEMACCESS_W ) {
+            if ( event->mem_event.out_access & VMI_MEMACCESS_W )
+            {
                 pass->traps = g_hash_table_lookup(drakvuf->breakpoint_lookup_gfn, &pass->gfn);
                 if ( pass->traps )
                     pass->remapped_gfn = g_hash_table_lookup(drakvuf->remapped_gfns, &pass->gfn);
             }
-        } else
+        }
+        else
             event->slat_id = drakvuf->altp2m_idr;
 
         PRINT_DEBUG("Switching to altp2m view %u on vCPU %u\n", event->slat_id, event->vcpu_id);
@@ -402,44 +437,52 @@ event_response_t pre_mem_cb(vmi_instance_t vmi, vmi_event_t *event) {
                VMI_EVENT_RESPONSE_VMM_PAGETABLE_ID;
     }
 
-    g_free(procname);
+    g_free( (gpointer)proc_data.name );
     return rsp;
 }
 
-event_response_t int3_cb(vmi_instance_t vmi, vmi_event_t *event) {
+event_response_t int3_cb(vmi_instance_t vmi, vmi_event_t* event)
+{
     UNUSED(vmi);
     event_response_t rsp = 0;
     drakvuf_t drakvuf = event->data;
     drakvuf->regs[event->vcpu_id] = event->x86_regs;
 
-    reg_t cr3 = event->x86_regs->cr3;
     addr_t pa = (event->interrupt_event.gfn << 12)
                 + event->interrupt_event.offset + event->interrupt_event.insn_length - 1;
 
+#ifdef DEBUG
+    reg_t cr3 = event->x86_regs->cr3;
     PRINT_DEBUG("INT3 event vCPU %u altp2m:%u CR3: 0x%"PRIx64" PA=0x%"PRIx64" RIP=0x%"PRIx64". Insn_length: %u\n",
                 event->vcpu_id, event->slat_id, cr3, pa,
                 event->interrupt_event.gla, event->interrupt_event.insn_length);
+#endif
 
-    struct wrapper *s = g_hash_table_lookup(drakvuf->breakpoint_lookup_pa, &pa);
-    if (!s) {
+    struct wrapper* s = g_hash_table_lookup(drakvuf->breakpoint_lookup_pa, &pa);
+    if (!s)
+    {
         /*
          * No trap is currently registered for this location
          * but this event may have been triggered by one we just
          * removed.
          */
         uint8_t test = 0;
-        if ( VMI_FAILURE == vmi_read_8_pa(vmi, pa, &test) ) {
+        if ( VMI_FAILURE == vmi_read_8_pa(vmi, pa, &test) )
+        {
             fprintf(stderr, "Critical error in int3 callback, can't read page\n");
             drakvuf->interrupted = -1;
             return 0;
         }
 
-        if (test == bp) {
+        if (test == bp)
+        {
             // There is a breakpoint instruction in memory here
             // so we need to reinject this to the guest.
             PRINT_DEBUG("Reinjecting breakpoint into the guest\n");
             event->interrupt_event.reinject = 1;
-        } else {
+        }
+        else
+        {
             // This was an event for an old breakpoint no longer set
             PRINT_DEBUG("Ignoring old breakpoint event found in the queue\n");
             event->interrupt_event.reinject = 0;
@@ -452,17 +495,23 @@ event_response_t int3_cb(vmi_instance_t vmi, vmi_event_t *event) {
     else
         event->interrupt_event.reinject = 0;
 
-    char *procname = drakvuf_get_current_process_name(drakvuf, event->vcpu_id);
-    int64_t userid = drakvuf_get_current_process_userid(drakvuf, event->vcpu_id);
+    proc_data_t proc_data = {0};
+
+    drakvuf_get_current_process_data(drakvuf, event->vcpu_id, &proc_data);
 
     drakvuf->in_callback = 1;
-    GSList *loop = s->traps;
-    while(loop) {
-        drakvuf_trap_t *trap = loop->data;
-        drakvuf_trap_info_t trap_info = {
+    GSList* loop = s->traps;
+    while (loop)
+    {
+        drakvuf_trap_t* trap = loop->data;
+        drakvuf_trap_info_t trap_info =
+        {
             .trap = trap,
-            .procname = procname,
-            .userid = userid,
+            .proc_data.base_addr = proc_data.base_addr,
+            .proc_data.name      = proc_data.name,
+            .proc_data.pid       = proc_data.pid,
+            .proc_data.ppid      = proc_data.ppid,
+            .proc_data.userid    = proc_data.userid,
             .trap_pa = pa,
             .regs = event->x86_regs,
             .vcpu = event->vcpu_id,
@@ -473,12 +522,13 @@ event_response_t int3_cb(vmi_instance_t vmi, vmi_event_t *event) {
     }
     drakvuf->in_callback = 0;
 
-    g_free(procname);
+    g_free( (gpointer)proc_data.name );
 
     process_free_requests(drakvuf);
 
     // Check if we have traps still active on this breakpoint
-    if ( g_hash_table_lookup(drakvuf->breakpoint_lookup_pa, &pa) ) {
+    if ( g_hash_table_lookup(drakvuf->breakpoint_lookup_pa, &pa) )
+    {
         PRINT_DEBUG("Switching altp2m and to singlestep on vcpu %u\n", event->vcpu_id);
         event->slat_id = 0;
         drakvuf->step_event[event->vcpu_id]->callback = vmi_reset_trap;
@@ -491,7 +541,8 @@ event_response_t int3_cb(vmi_instance_t vmi, vmi_event_t *event) {
     return rsp;
 }
 
-event_response_t cr3_cb(vmi_instance_t vmi, vmi_event_t *event) {
+event_response_t cr3_cb(vmi_instance_t vmi, vmi_event_t* event)
+{
     UNUSED(vmi);
     event_response_t rsp = 0;
     drakvuf_t drakvuf = (drakvuf_t)event->data;
@@ -500,7 +551,7 @@ event_response_t cr3_cb(vmi_instance_t vmi, vmi_event_t *event) {
 #ifdef DRAKVUF_DEBUG
     /* This is very verbose and always on so we only print debug information
      * when there is a subscriber trap */
-    if(drakvuf->cr3)
+    if (drakvuf->cr3)
         PRINT_DEBUG("CR3 cb on vCPU %u: 0x%" PRIx64 "\n", event->vcpu_id, event->reg_event.value);
 #endif
 
@@ -518,21 +569,29 @@ event_response_t cr3_cb(vmi_instance_t vmi, vmi_event_t *event) {
             drakvuf->kpcr[event->vcpu_id] = event->x86_regs->gs_base;
         else
             drakvuf->kpcr[event->vcpu_id] = event->x86_regs->fs_base;
-    } else {
-       drakvuf->kpcr[event->vcpu_id] = event->x86_regs->rsp;
+    }
+    else
+    {
+        drakvuf->kpcr[event->vcpu_id] = event->x86_regs->rsp;
     }
 
-    char *procname = drakvuf_get_current_process_name(drakvuf, event->vcpu_id);
-    int64_t userid = drakvuf_get_current_process_userid(drakvuf, event->vcpu_id);
+    proc_data_t proc_data = {0};
+
+    drakvuf_get_current_process_data( drakvuf, event->vcpu_id, &proc_data );
 
     drakvuf->in_callback = 1;
-    GSList *loop = drakvuf->cr3;
-    while(loop) {
-        drakvuf_trap_t *trap = loop->data;
-        drakvuf_trap_info_t trap_info = {
+    GSList* loop = drakvuf->cr3;
+    while (loop)
+    {
+        drakvuf_trap_t* trap = loop->data;
+        drakvuf_trap_info_t trap_info =
+        {
             .trap = trap,
-            .procname = procname,
-            .userid = userid,
+            .proc_data.base_addr = proc_data.base_addr,
+            .proc_data.name      = proc_data.name,
+            .proc_data.pid       = proc_data.pid,
+            .proc_data.ppid      = proc_data.ppid,
+            .proc_data.userid    = proc_data.userid,
             .regs = event->x86_regs,
             .vcpu = event->vcpu_id,
         };
@@ -542,35 +601,44 @@ event_response_t cr3_cb(vmi_instance_t vmi, vmi_event_t *event) {
     }
     drakvuf->in_callback = 0;
 
-    g_free(procname);
+    g_free( (gpointer)proc_data.name );
 
     process_free_requests(drakvuf);
 
     return rsp;
 }
 
-event_response_t debug_cb(vmi_instance_t vmi, vmi_event_t *event) {
+event_response_t debug_cb(vmi_instance_t vmi, vmi_event_t* event)
+{
     UNUSED(vmi);
     event_response_t rsp = 0;
-    addr_t pa = (event->debug_event.gfn << 12) + event->debug_event.offset;
     drakvuf_t drakvuf = (drakvuf_t)event->data;
     drakvuf->regs[event->vcpu_id] = event->x86_regs;
 
+#ifdef DEBUG
+    addr_t pa = (event->debug_event.gfn << 12) + event->debug_event.offset;
     PRINT_DEBUG("Debug event vCPU %u altp2m:%u CR3: 0x%"PRIx64" PA=0x%"PRIx64" RIP=0x%"PRIx64". Insn_length: %u\n",
                 event->vcpu_id, event->slat_id, event->x86_regs->cr3, pa,
                 event->debug_event.gla, event->debug_event.insn_length);
+#endif
 
-    char *procname = drakvuf_get_current_process_name(drakvuf, event->vcpu_id);
-    int64_t userid = drakvuf_get_current_process_userid(drakvuf, event->vcpu_id);
+    proc_data_t proc_data = {0};
+
+    drakvuf_get_current_process_data( drakvuf, event->vcpu_id, &proc_data );
 
     drakvuf->in_callback = 1;
-    GSList *loop = drakvuf->debug;
-    while(loop) {
-        drakvuf_trap_t *trap = loop->data;
-        drakvuf_trap_info_t trap_info = {
+    GSList* loop = drakvuf->debug;
+    while (loop)
+    {
+        drakvuf_trap_t* trap = loop->data;
+        drakvuf_trap_info_t trap_info =
+        {
             .trap = trap,
-            .procname = procname,
-            .userid = userid,
+            .proc_data.base_addr = proc_data.base_addr,
+            .proc_data.name      = proc_data.name,
+            .proc_data.pid       = proc_data.pid,
+            .proc_data.ppid      = proc_data.ppid,
+            .proc_data.userid    = proc_data.userid,
             .regs = event->x86_regs,
             .vcpu = event->vcpu_id,
             .debug = &event->debug_event
@@ -581,7 +649,7 @@ event_response_t debug_cb(vmi_instance_t vmi, vmi_event_t *event) {
     }
     drakvuf->in_callback = 0;
 
-    g_free(procname);
+    g_free( (gpointer)proc_data.name );
 
     process_free_requests(drakvuf);
 
@@ -590,7 +658,8 @@ event_response_t debug_cb(vmi_instance_t vmi, vmi_event_t *event) {
     return rsp;
 }
 
-event_response_t cpuid_cb(vmi_instance_t vmi, vmi_event_t *event) {
+event_response_t cpuid_cb(vmi_instance_t vmi, vmi_event_t* event)
+{
     UNUSED(vmi);
     event_response_t rsp = 0;
     drakvuf_t drakvuf = (drakvuf_t)event->data;
@@ -601,17 +670,23 @@ event_response_t cpuid_cb(vmi_instance_t vmi, vmi_event_t *event) {
                 event->x86_regs->rip, event->cpuid_event.insn_length);
 
     reg_t rip = event->x86_regs->rip;
-    char *procname = drakvuf_get_current_process_name(drakvuf, event->vcpu_id);
-    int64_t userid = drakvuf_get_current_process_userid(drakvuf, event->vcpu_id);
+    proc_data_t proc_data = {0};
+
+    drakvuf_get_current_process_data( drakvuf, event->vcpu_id, &proc_data );
 
     drakvuf->in_callback = 1;
-    GSList *loop = drakvuf->cpuid;
-    while(loop) {
-        drakvuf_trap_t *trap = loop->data;
-        drakvuf_trap_info_t trap_info = {
+    GSList* loop = drakvuf->cpuid;
+    while (loop)
+    {
+        drakvuf_trap_t* trap = loop->data;
+        drakvuf_trap_info_t trap_info =
+        {
             .trap = trap,
-            .procname = procname,
-            .userid = userid,
+            .proc_data.base_addr = proc_data.base_addr,
+            .proc_data.name      = proc_data.name,
+            .proc_data.pid       = proc_data.pid,
+            .proc_data.ppid      = proc_data.ppid,
+            .proc_data.userid    = proc_data.userid,
             .regs = event->x86_regs,
             .vcpu = event->vcpu_id,
             .cpuid = &event->cpuid_event
@@ -622,7 +697,7 @@ event_response_t cpuid_cb(vmi_instance_t vmi, vmi_event_t *event) {
     }
     drakvuf->in_callback = 0;
 
-    g_free(procname);
+    g_free( (gpointer)proc_data.name );
 
     process_free_requests(drakvuf);
 
@@ -633,149 +708,162 @@ event_response_t cpuid_cb(vmi_instance_t vmi, vmi_event_t *event) {
 }
 
 void remove_trap(drakvuf_t drakvuf,
-                 const drakvuf_trap_t *trap)
+                 const drakvuf_trap_t* trap)
 {
     vmi_instance_t vmi = drakvuf->vmi;
 
-    switch(trap->type) {
-    case BREAKPOINT:
+    switch (trap->type)
     {
-        struct wrapper *container =
-            g_hash_table_lookup(drakvuf->breakpoint_lookup_trap, &trap);
+        case BREAKPOINT:
+        {
+            struct wrapper* container =
+                g_hash_table_lookup(drakvuf->breakpoint_lookup_trap, &trap);
 
-        if ( !container )
-            return;
+            if ( !container )
+                return;
 
-        xen_pfn_t current_gfn = container->breakpoint.pa >> 12;
-        uint64_t _current_gfn = current_gfn;
+            xen_pfn_t current_gfn = container->breakpoint.pa >> 12;
+            uint64_t _current_gfn = current_gfn;
 
-        PRINT_DEBUG("Removing breakpoint trap from 0x%lx.\n",
-                    container->breakpoint.pa);
+            PRINT_DEBUG("Removing breakpoint trap from 0x%lx.\n",
+                        container->breakpoint.pa);
 
-        g_hash_table_remove(drakvuf->breakpoint_lookup_trap, &trap);
-        container->traps = g_slist_remove(container->traps, trap);
+            g_hash_table_remove(drakvuf->breakpoint_lookup_trap, &trap);
+            container->traps = g_slist_remove(container->traps, trap);
 
-        /* Update list of traps on this gfn */
-        GSList *traps_on_gfn =
-            g_hash_table_lookup(drakvuf->breakpoint_lookup_gfn, &_current_gfn);
-        traps_on_gfn = g_slist_remove(traps_on_gfn, &container->breakpoint.pa);
-        g_hash_table_remove(drakvuf->breakpoint_lookup_gfn, &_current_gfn);
+            /* Update list of traps on this gfn */
+            GSList* traps_on_gfn =
+                g_hash_table_lookup(drakvuf->breakpoint_lookup_gfn, &_current_gfn);
+            traps_on_gfn = g_slist_remove(traps_on_gfn, &container->breakpoint.pa);
+            g_hash_table_remove(drakvuf->breakpoint_lookup_gfn, &_current_gfn);
 
-        if ( traps_on_gfn ) {
-            // the list head may change so we force a reinsert
-            g_hash_table_insert(drakvuf->breakpoint_lookup_gfn, g_memdup(&_current_gfn, sizeof(uint64_t)), traps_on_gfn);
-        }
-
-        if(!container->traps) {
-
-            struct remapped_gfn *remapped_gfn = g_hash_table_lookup(drakvuf->remapped_gfns, &current_gfn);
-            uint8_t backup;
-
-            if ( VMI_FAILURE == vmi_read_8_pa(drakvuf->vmi, container->breakpoint.pa, &backup) ) {
-                fprintf(stderr, "Critical error in removing int3\n");
-                drakvuf->interrupted = -1;
-                break;
-            }
-
-            if ( VMI_FAILURE == vmi_write_8_pa(drakvuf->vmi,
-                                    (remapped_gfn->r << 12) + (container->breakpoint.pa & VMI_BIT_MASK(0,11)),
-                                    &backup) )
+            if ( traps_on_gfn )
             {
-                fprintf(stderr, "Critical error in removing int3\n");
-                drakvuf->interrupted = -1;
-                break;
+                // the list head may change so we force a reinsert
+                g_hash_table_insert(drakvuf->breakpoint_lookup_gfn, g_memdup(&_current_gfn, sizeof(uint64_t)), traps_on_gfn);
             }
 
-            remove_trap(drakvuf, &container->breakpoint.guard);
-            remove_trap(drakvuf, &container->breakpoint.guard2);
-
-            g_hash_table_remove(drakvuf->breakpoint_lookup_pa, &container->breakpoint.pa);
-        }
-
-        break;
-    }
-    case MEMACCESS:
-    {
-        struct wrapper *container =
-            g_hash_table_lookup(drakvuf->memaccess_lookup_trap, &trap);
-        status_t ret;
-
-        if ( !container ) {
-            return;
-        }
-
-        container->traps = g_slist_remove(container->traps, trap);
-
-        if (!container->traps) {
-            if ( VMI_SUCCESS == vmi_set_mem_event(vmi, container->memaccess.gfn, VMI_MEMACCESS_N, drakvuf->altp2m_idx) )
+            if (!container->traps)
             {
-                PRINT_DEBUG("Removed memtrap for GFN 0x%lx in altp2m view %u\n",
-                            container->memaccess.gfn, drakvuf->altp2m_idx);
-                g_hash_table_remove(drakvuf->memaccess_lookup_trap, &trap);
-                g_hash_table_remove(drakvuf->memaccess_lookup_gfn, &container->memaccess.gfn);
+
+                struct remapped_gfn* remapped_gfn = g_hash_table_lookup(drakvuf->remapped_gfns, &current_gfn);
+                uint8_t backup;
+
+                if ( VMI_FAILURE == vmi_read_8_pa(drakvuf->vmi, container->breakpoint.pa, &backup) )
+                {
+                    fprintf(stderr, "Critical error in removing int3\n");
+                    drakvuf->interrupted = -1;
+                    break;
+                }
+
+                if ( VMI_FAILURE == vmi_write_8_pa(drakvuf->vmi,
+                                                   (remapped_gfn->r << 12) + (container->breakpoint.pa & VMI_BIT_MASK(0,11)),
+                                                   &backup) )
+                {
+                    fprintf(stderr, "Critical error in removing int3\n");
+                    drakvuf->interrupted = -1;
+                    break;
+                }
+
+                remove_trap(drakvuf, &container->breakpoint.guard);
+                remove_trap(drakvuf, &container->breakpoint.guard2);
+
+                g_hash_table_remove(drakvuf->breakpoint_lookup_pa, &container->breakpoint.pa);
             }
-            return;
+
+            break;
         }
+        case MEMACCESS:
+        {
+            struct wrapper* container =
+                g_hash_table_lookup(drakvuf->memaccess_lookup_trap, &trap);
+            status_t ret;
 
-        /*
-         * If more subscriber are present make sure we only set the required access settings.
-         */
-        GSList *loop = container->traps;
-        vmi_mem_access_t update_access = 0;
+            if ( !container )
+            {
+                return;
+            }
 
-        while(loop) {
-            drakvuf_trap_t *trap = loop->data;
-            update_access |= trap->memaccess.access;
-            loop=loop->next;
+            container->traps = g_slist_remove(container->traps, trap);
+
+            if (!container->traps)
+            {
+                if ( VMI_SUCCESS == vmi_set_mem_event(vmi, container->memaccess.gfn, VMI_MEMACCESS_N, drakvuf->altp2m_idx) )
+                {
+                    PRINT_DEBUG("Removed memtrap for GFN 0x%lx in altp2m view %u\n",
+                                container->memaccess.gfn, drakvuf->altp2m_idx);
+                    g_hash_table_remove(drakvuf->memaccess_lookup_trap, &trap);
+                    g_hash_table_remove(drakvuf->memaccess_lookup_gfn, &container->memaccess.gfn);
+                }
+                return;
+            }
+
+            /*
+             * If more subscriber are present make sure we only set the required access settings.
+             */
+            GSList* loop = container->traps;
+            vmi_mem_access_t update_access = 0;
+
+            while (loop)
+            {
+                drakvuf_trap_t* trap = loop->data;
+                update_access |= trap->memaccess.access;
+                loop=loop->next;
+            }
+
+            ret = vmi_set_mem_event(vmi, container->memaccess.gfn, update_access, drakvuf->altp2m_idx);
+            if (VMI_SUCCESS == ret)
+            {
+                PRINT_DEBUG("Successfully set access to %c%c%c on GFN 0x%lx!\n",
+                            (update_access & VMI_MEMACCESS_R) ? 'r' : '-',
+                            (update_access & VMI_MEMACCESS_W) ? 'w' : '-',
+                            (update_access & VMI_MEMACCESS_X) ? 'x' : '-',
+                            container->memaccess.gfn
+                           );
+                container->memaccess.access = update_access;
+            }
+            else
+                PRINT_DEBUG("Failed to update memaccess trap settings on GFN 0x%lx!\n", container->memaccess.gfn);
+
+            break;
         }
-
-        ret = vmi_set_mem_event(vmi, container->memaccess.gfn, update_access, drakvuf->altp2m_idx);
-        if(VMI_SUCCESS == ret) {
-            PRINT_DEBUG("Successfully set access to %c%c%c on GFN 0x%lx!\n",
-                        (update_access & VMI_MEMACCESS_R) ? 'r' : '-',
-                        (update_access & VMI_MEMACCESS_W) ? 'w' : '-',
-                        (update_access & VMI_MEMACCESS_X) ? 'x' : '-',
-                        container->memaccess.gfn
-                        );
-            container->memaccess.access = update_access;
-        } else
-            PRINT_DEBUG("Failed to update memaccess trap settings on GFN 0x%lx!\n", container->memaccess.gfn);
-
-        break;
-    }
-    case REGISTER:
-    {
-        if(CR3 == trap->reg) {
-            /* We don't disable the event itself even if the list is empty
-               as we may use it to flush the LibVMI cache */
-            drakvuf->cr3 = g_slist_remove(drakvuf->cr3, trap);
+        case REGISTER:
+        {
+            if (CR3 == trap->reg)
+            {
+                /* We don't disable the event itself even if the list is empty
+                   as we may use it to flush the LibVMI cache */
+                drakvuf->cr3 = g_slist_remove(drakvuf->cr3, trap);
+            }
+            break;
         }
-        break;
-    }
-    case DEBUG:
-        drakvuf->debug = g_slist_remove(drakvuf->debug, trap);
-        if ( !drakvuf->debug )
-            control_debug_trap(drakvuf, 0);
-        break;
-    case CPUID:
-        drakvuf->cpuid = g_slist_remove(drakvuf->cpuid, trap);
-        if ( !drakvuf->cpuid )
-            control_cpuid_trap(drakvuf, 0);
-        break;
-    default:
-        break;
+        case DEBUG:
+            drakvuf->debug = g_slist_remove(drakvuf->debug, trap);
+            if ( !drakvuf->debug )
+                control_debug_trap(drakvuf, 0);
+            break;
+        case CPUID:
+            drakvuf->cpuid = g_slist_remove(drakvuf->cpuid, trap);
+            if ( !drakvuf->cpuid )
+                control_cpuid_trap(drakvuf, 0);
+            break;
+        default:
+            break;
     };
 }
 
-bool inject_trap_mem(drakvuf_t drakvuf, drakvuf_trap_t *trap, bool guard2) {
-    struct wrapper *s =
+bool inject_trap_mem(drakvuf_t drakvuf, drakvuf_trap_t* trap, bool guard2)
+{
+    struct wrapper* s =
         g_hash_table_lookup(drakvuf->memaccess_lookup_gfn, &trap->memaccess.gfn);
 
     // We already have a trap registered on this page
     // check if type matches, if so, add trap to the list
-    if (s) {
-        drakvuf_trap_t *havetrap = s->traps->data;
-        if(havetrap->type != trap->type) {
+    if (s)
+    {
+        drakvuf_trap_t* havetrap = s->traps->data;
+        if (havetrap->type != trap->type)
+        {
             PRINT_DEBUG("Failed to add memaccess trap as gfn is already trapped!\n");
             return 0;
         }
@@ -786,12 +874,14 @@ bool inject_trap_mem(drakvuf_t drakvuf, drakvuf_trap_t *trap, bool guard2) {
          */
         s->memaccess.guard2 = guard2;
 
-        if ( s->memaccess.access != trap->memaccess.access ) {
+        if ( s->memaccess.access != trap->memaccess.access )
+        {
 
             vmi_mem_access_t update_access = (s->memaccess.access | trap->memaccess.access);
             status_t ret = vmi_set_mem_event(drakvuf->vmi, trap->memaccess.gfn, update_access, drakvuf->altp2m_idx);
 
-            if ( ret == VMI_FAILURE ) {
+            if ( ret == VMI_FAILURE )
+            {
                 PRINT_DEBUG("*** FAILED TO SET MEMORY TRAP @ PAGE %lu ***\n", trap->memaccess.gfn);
                 return 0;
             }
@@ -802,7 +892,9 @@ bool inject_trap_mem(drakvuf_t drakvuf, drakvuf_trap_t *trap, bool guard2) {
         s->traps = g_slist_prepend(s->traps, trap);
         g_hash_table_insert(drakvuf->memaccess_lookup_trap, g_memdup(&trap, sizeof(void*)), s);
         return 1;
-    } else {
+    }
+    else
+    {
 
         status_t ret;
         xen_unshare_gfn(drakvuf->xen, drakvuf->domID, trap->memaccess.gfn);
@@ -820,7 +912,8 @@ bool inject_trap_mem(drakvuf_t drakvuf, drakvuf_trap_t *trap, bool guard2) {
         s->memaccess.guard2 = guard2;
 
         ret = vmi_set_mem_event(drakvuf->vmi, trap->memaccess.gfn, trap->memaccess.access, drakvuf->altp2m_idx);
-        if ( ret == VMI_FAILURE ) {
+        if ( ret == VMI_FAILURE )
+        {
             PRINT_DEBUG("*** FAILED TO SET MEMORY TRAP @ PAGE %lu ***\n",
                         trap->memaccess.gfn);
             g_slist_free(s->traps);
@@ -836,43 +929,53 @@ bool inject_trap_mem(drakvuf_t drakvuf, drakvuf_trap_t *trap, bool guard2) {
 }
 
 bool inject_trap_pa(drakvuf_t drakvuf,
-                    drakvuf_trap_t *trap,
+                    drakvuf_trap_t* trap,
                     addr_t pa)
 {
     // check if already marked
     vmi_instance_t vmi = drakvuf->vmi;
     xen_pfn_t current_gfn = pa >> 12;
-    struct wrapper *container = g_hash_table_lookup(drakvuf->breakpoint_lookup_pa, &pa);
+    struct wrapper* container = g_hash_table_lookup(drakvuf->breakpoint_lookup_pa, &pa);
 
-    if (container) {
+    if (container)
+    {
         g_hash_table_insert(drakvuf->breakpoint_lookup_trap,
                             g_memdup(&trap, sizeof(void*)),
                             container);
         container->traps = g_slist_prepend(container->traps, trap);
 
-        GSList *traps = g_hash_table_lookup(drakvuf->breakpoint_lookup_gfn, &current_gfn);
+        GSList* traps = g_hash_table_lookup(drakvuf->breakpoint_lookup_gfn, &current_gfn);
         traps = g_slist_append(traps, &container->breakpoint.pa);
+
+        /* this should never happen but at least it makes some static analyzers happy */
+        if ( 1 == g_slist_length(traps) )
+            g_hash_table_insert(drakvuf->breakpoint_lookup_gfn,
+                                g_memdup(&current_gfn, sizeof(xen_pfn_t)),
+                                traps);
 
         return 1;
     }
 
     /* Check if we have memtraps on this page */
-    struct wrapper *s = g_hash_table_lookup(drakvuf->memaccess_lookup_gfn, &current_gfn);
+    struct wrapper* s = g_hash_table_lookup(drakvuf->memaccess_lookup_gfn, &current_gfn);
     vmi_mem_access_t old_access = VMI_MEMACCESS_INVALID;
 
     if (s)
         old_access = s->memaccess.access;
 
     container = g_malloc0(sizeof(struct wrapper));
+    if ( !container )
+        return 0;
 
     container->drakvuf = drakvuf;
     container->traps = g_slist_prepend(container->traps, trap);
     container->breakpoint.pa = pa;
 
     /* Let's see if we have already created the shadow copy of this page */
-    struct remapped_gfn *remapped_gfn = g_hash_table_lookup(drakvuf->remapped_gfns, &current_gfn);
+    struct remapped_gfn* remapped_gfn = g_hash_table_lookup(drakvuf->remapped_gfns, &current_gfn);
 
-    if ( !remapped_gfn ) {
+    if ( !remapped_gfn )
+    {
         remapped_gfn = g_malloc0(sizeof(struct remapped_gfn));
         remapped_gfn->o = current_gfn;
 
@@ -887,7 +990,7 @@ bool inject_trap_pa(drakvuf_t drakvuf,
         rc = xc_domain_populate_physmap_exact(drakvuf->xen->xc, drakvuf->domID, 1, 0, 0, &remapped_gfn->r);
         PRINT_DEBUG("Physmap populated? %i\n", rc);
         if (rc < 0)
-            return 0;
+            goto err_exit;
 
         g_hash_table_insert(drakvuf->remapped_gfns,
                             &remapped_gfn->o,
@@ -901,29 +1004,31 @@ bool inject_trap_pa(drakvuf_t drakvuf,
     if (!g_hash_table_lookup(drakvuf->breakpoint_lookup_gfn, &remapped_gfn->o) )
     {
         uint8_t backup[VMI_PS_4KB] = {0};
-        if(VMI_PS_4KB != vmi_read_pa(drakvuf->vmi, current_gfn<<12, &backup, VMI_PS_4KB))
+        if ( VMI_FAILURE == vmi_read_pa(drakvuf->vmi, current_gfn<<12, VMI_PS_4KB, &backup, NULL) )
         {
             fprintf(stderr, "Copying trapped page to new location FAILED\n");
-            return 0;
+            goto err_exit;
         }
 
-        if ( VMI_PS_4KB == vmi_write_pa(drakvuf->vmi, remapped_gfn->r << 12, &backup, VMI_PS_4KB) )
+        if ( VMI_SUCCESS == vmi_write_pa(drakvuf->vmi, remapped_gfn->r << 12, VMI_PS_4KB, &backup, NULL) )
             PRINT_DEBUG("Copied trapped page to new location\n");
-        else {
+        else
+        {
             // TODO cleanup
             fprintf(stderr, "Copying trapped page to new location FAILED\n");
-            return 0;
+            goto err_exit;
         }
     }
 
-    if ( !remapped_gfn->active ) {
+    if ( !remapped_gfn->active )
+    {
         PRINT_DEBUG("Activating remapped gfns in the altp2m views!\n");
         remapped_gfn->active = 1;
 
         xc_altp2m_change_gfn(drakvuf->xen->xc, drakvuf->domID,
-                         drakvuf->altp2m_idx, current_gfn, remapped_gfn->r);
+                             drakvuf->altp2m_idx, current_gfn, remapped_gfn->r);
         xc_altp2m_change_gfn(drakvuf->xen->xc, drakvuf->domID,
-                         drakvuf->altp2m_idr, remapped_gfn->r, drakvuf->zero_page_gfn);
+                             drakvuf->altp2m_idr, remapped_gfn->r, drakvuf->zero_page_gfn);
     }
 
     /*
@@ -940,14 +1045,16 @@ bool inject_trap_pa(drakvuf_t drakvuf,
     container->breakpoint.guard2.memaccess.type = PRE;
     container->breakpoint.guard2.memaccess.gfn = remapped_gfn->r;
 
-    if ( !inject_trap_mem(drakvuf, &container->breakpoint.guard, 0) ) {
+    if ( !inject_trap_mem(drakvuf, &container->breakpoint.guard, 0) )
+    {
         PRINT_DEBUG("Failed to create guard trap for the breakpoint!\n");
-        return 0;
+        goto err_exit;
     }
 
-    if ( !inject_trap_mem(drakvuf, &container->breakpoint.guard2, 1) ) {
+    if ( !inject_trap_mem(drakvuf, &container->breakpoint.guard2, 1) )
+    {
         PRINT_DEBUG("Failed to create guard2 trap for the breakpoint!\n");
-        return 0;
+        goto err_exit;
     }
 
     addr_t rpa = (remapped_gfn->r<<12) + (container->breakpoint.pa & VMI_BIT_MASK(0,11));
@@ -956,7 +1063,7 @@ bool inject_trap_pa(drakvuf_t drakvuf,
     if (VMI_FAILURE == vmi_read_8_pa(vmi, pa, &test))
     {
         PRINT_DEBUG("FAILED TO READ @ 0x%lx !\n", container->breakpoint.pa);
-        return 0;
+        goto err_exit;
     }
 
     if (test == bp)
@@ -971,12 +1078,12 @@ bool inject_trap_pa(drakvuf_t drakvuf,
         if (VMI_FAILURE == vmi_write_8_pa(vmi, rpa, &bp))
         {
             PRINT_DEBUG("FAILED TO INJECT TRAP @ 0x%lx !\n", container->breakpoint.pa);
-            return 0;
+            goto err_exit;
         }
     }
 
     // list of traps on this page
-    GSList *traps = g_hash_table_lookup(drakvuf->breakpoint_lookup_gfn, &current_gfn);
+    GSList* traps = g_hash_table_lookup(drakvuf->breakpoint_lookup_gfn, &current_gfn);
     traps = g_slist_append(traps, &container->breakpoint.pa);
 
     // save trap location into lookup tree
@@ -991,44 +1098,56 @@ bool inject_trap_pa(drakvuf_t drakvuf,
     PRINT_DEBUG("\t\tTrap added @ PA 0x%" PRIx64 " RPA 0x%" PRIx64 " Page %" PRIu64 " for %s. \n",
                 container->breakpoint.pa, rpa, pa >> 12, trap->name);
     return 1;
+
+err_exit:
+    g_free(container);
+    g_free(remapped_gfn);
+    return 0;
 }
 
 bool inject_trap(drakvuf_t drakvuf,
-                 drakvuf_trap_t *trap,
+                 drakvuf_trap_t* trap,
                  addr_t vaddr,
                  vmi_pid_t pid)
 {
 
     vmi_instance_t vmi = drakvuf->vmi;
-    addr_t dtb = vmi_pid_to_dtb(vmi, pid);
+    addr_t dtb, pa = 0;
+    status_t status;
 
-    // get pa
-    addr_t pa = 0;
+    if ( VMI_FAILURE == vmi_pid_to_dtb(vmi, pid, &dtb) )
+        return 0;
 
-    if (trap->breakpoint.addr_type == ADDR_VA)
-        pa = vmi_pagetable_lookup(vmi, dtb, trap->breakpoint.addr);
+    if ( trap->breakpoint.addr_type == ADDR_VA )
+        status = vmi_pagetable_lookup(vmi, dtb, trap->breakpoint.addr, &pa);
     else
-        pa = vmi_pagetable_lookup(vmi, dtb, vaddr + trap->breakpoint.rva);
+        status = vmi_pagetable_lookup(vmi, dtb, vaddr + trap->breakpoint.rva, &pa);
 
-    if (!pa)
+    if ( VMI_FAILURE == status )
         return 0;
 
     return inject_trap_pa(drakvuf, trap, pa);
 }
 
-bool control_debug_trap(drakvuf_t drakvuf, bool toggle) {
+bool control_debug_trap(drakvuf_t drakvuf, bool toggle)
+{
     drakvuf->debug_event.version = VMI_EVENTS_VERSION;
     drakvuf->debug_event.type = VMI_EVENT_DEBUG_EXCEPTION;
     drakvuf->debug_event.data = drakvuf;
     drakvuf->debug_event.callback = debug_cb;
 
-    if ( toggle ) {
-        if(VMI_FAILURE == vmi_register_event(drakvuf->vmi, &drakvuf->debug_event)) {
+    if ( toggle )
+    {
+        if (VMI_FAILURE == vmi_register_event(drakvuf->vmi, &drakvuf->debug_event))
+        {
             fprintf(stderr, "Failed to register DEBUG event\n");
             return 0;
         }
-    } else {
-        if(VMI_FAILURE == vmi_clear_event(drakvuf->vmi, &drakvuf->debug_event, NULL)) {
+    }
+    else
+    {
+        if (VMI_FAILURE == vmi_clear_event(drakvuf->vmi, &drakvuf->debug_event, NULL))
+        {
             fprintf(stderr, "Failed to clear DEBUG event\n");
             return 0;
         }
@@ -1037,19 +1156,25 @@ bool control_debug_trap(drakvuf_t drakvuf, bool toggle) {
     return 1;
 }
 
-bool control_cpuid_trap(drakvuf_t drakvuf, bool toggle) {
+bool control_cpuid_trap(drakvuf_t drakvuf, bool toggle)
+{
     drakvuf->cpuid_event.version = VMI_EVENTS_VERSION;
     drakvuf->cpuid_event.type = VMI_EVENT_CPUID;
     drakvuf->cpuid_event.data = drakvuf;
     drakvuf->cpuid_event.callback = cpuid_cb;
 
-    if ( toggle ) {
-        if(VMI_FAILURE == vmi_register_event(drakvuf->vmi, &drakvuf->cpuid_event)) {
+    if ( toggle )
+    {
+        if (VMI_FAILURE == vmi_register_event(drakvuf->vmi, &drakvuf->cpuid_event))
+        {
             fprintf(stderr, "Failed to register CPUID event\n");
             return 0;
         }
-    } else {
-        if(VMI_FAILURE == vmi_clear_event(drakvuf->vmi, &drakvuf->cpuid_event, NULL)) {
+    }
+    else
+    {
+        if (VMI_FAILURE == vmi_clear_event(drakvuf->vmi, &drakvuf->cpuid_event, NULL))
+        {
             fprintf(stderr, "Failed to clear CPUID event\n");
             return 0;
         }
@@ -1058,14 +1183,16 @@ bool control_cpuid_trap(drakvuf_t drakvuf, bool toggle) {
     return 1;
 }
 
-void drakvuf_loop(drakvuf_t drakvuf) {
+void drakvuf_loop(drakvuf_t drakvuf)
+{
 
     PRINT_DEBUG("Started DRAKVUF loop\n");
 
     drakvuf->interrupted = 0;
     drakvuf_force_resume(drakvuf);
 
-    while (!drakvuf->interrupted) {
+    while (!drakvuf->interrupted)
+    {
         //PRINT_DEBUG("Waiting for events in DRAKVUF...\n");
         status_t status = vmi_events_listen(drakvuf->vmi, 1000);
 
@@ -1082,7 +1209,8 @@ void drakvuf_loop(drakvuf_t drakvuf) {
     PRINT_DEBUG("DRAKVUF loop finished\n");
 }
 
-bool init_vmi(drakvuf_t drakvuf) {
+bool init_vmi(drakvuf_t drakvuf)
+{
 
     int rc;
     uint64_t flags = 0;
@@ -1090,27 +1218,30 @@ bool init_vmi(drakvuf_t drakvuf) {
     PRINT_DEBUG("Init VMI on domID %u -> %s\n", drakvuf->domID, drakvuf->dom_name);
 
     /* initialize the libvmi library */
-    if (VMI_FAILURE == vmi_init(&drakvuf->vmi, VMI_XEN, &drakvuf->domID, VMI_INIT_DOMAINID | VMI_INIT_EVENTS, NULL, NULL)) {
+    if (VMI_FAILURE == vmi_init(&drakvuf->vmi, VMI_XEN, &drakvuf->domID, VMI_INIT_DOMAINID | VMI_INIT_EVENTS, NULL, NULL))
+    {
         printf("Failed to init LibVMI library.\n");
         return 0;
     }
 
-    GHashTable *config = g_hash_table_new(g_str_hash, g_str_equal);
+    GHashTable* config = g_hash_table_new(g_str_hash, g_str_equal);
     g_hash_table_insert(config, "rekall_profile", drakvuf->rekall_profile);
 
-    switch(drakvuf->os) {
-    case VMI_OS_WINDOWS:
-        g_hash_table_insert(config, "os_type", "Windows");
-        flags = VMI_PM_INITFLAG_TRANSITION_PAGES;
-        break;
-    case VMI_OS_LINUX:
-        g_hash_table_insert(config, "os_type", "Linux");
-        break;
-    default:
-        break;
+    switch (drakvuf->os)
+    {
+        case VMI_OS_WINDOWS:
+            g_hash_table_insert(config, "os_type", "Windows");
+            flags = VMI_PM_INITFLAG_TRANSITION_PAGES;
+            break;
+        case VMI_OS_LINUX:
+            g_hash_table_insert(config, "os_type", "Linux");
+            break;
+        default:
+            break;
     };
 
-    if (VMI_PM_UNKNOWN == vmi_init_paging(drakvuf->vmi, flags) ) {
+    if (VMI_PM_UNKNOWN == vmi_init_paging(drakvuf->vmi, flags) )
+    {
         printf("Failed to init LibVMI paging.\n");
         g_hash_table_destroy(config);
         return 1;
@@ -1120,7 +1251,8 @@ bool init_vmi(drakvuf_t drakvuf) {
 
     g_hash_table_destroy(config);
 
-    if ( os != drakvuf->os ) {
+    if ( os != drakvuf->os )
+    {
         PRINT_DEBUG("Failed to init LibVMI library.\n");
         drakvuf->vmi = NULL;
         return 0;
@@ -1155,11 +1287,13 @@ bool init_vmi(drakvuf_t drakvuf) {
      * Setup singlestep event handlers but don't turn on MTF.
      * Max 16 CPUs!
      */
-    for (i = 0; i < drakvuf->vcpus && i < 16; i++) {
+    for (i = 0; i < drakvuf->vcpus && i < 16; i++)
+    {
         drakvuf->step_event[i] = g_malloc0(sizeof(vmi_event_t));
         SETUP_SINGLESTEP_EVENT(drakvuf->step_event[i], 1u << i, vmi_reset_trap, 0);
         drakvuf->step_event[i]->data = drakvuf;
-        if (VMI_FAILURE == vmi_register_event(drakvuf->vmi, drakvuf->step_event[i])) {
+        if (VMI_FAILURE == vmi_register_event(drakvuf->vmi, drakvuf->step_event[i]))
+        {
             fprintf(stderr, "Failed to register singlestep for vCPU %u\n", i);
             return 0;
         }
@@ -1211,7 +1345,8 @@ bool init_vmi(drakvuf_t drakvuf) {
     SETUP_INTERRUPT_EVENT(&drakvuf->interrupt_event, 0, int3_cb);
     drakvuf->interrupt_event.data = drakvuf;
 
-    if(VMI_FAILURE == vmi_register_event(drakvuf->vmi, &drakvuf->interrupt_event)) {
+    if (VMI_FAILURE == vmi_register_event(drakvuf->vmi, &drakvuf->interrupt_event))
+    {
         fprintf(stderr, "Failed to register interrupt event\n");
         return 0;
     }
@@ -1219,7 +1354,8 @@ bool init_vmi(drakvuf_t drakvuf) {
     SETUP_REG_EVENT(&drakvuf->cr3_event, CR3, VMI_REGACCESS_W, 0, cr3_cb);
     drakvuf->cr3_event.data = drakvuf;
 
-    if(VMI_FAILURE == vmi_register_event(drakvuf->vmi, &drakvuf->cr3_event)) {
+    if (VMI_FAILURE == vmi_register_event(drakvuf->vmi, &drakvuf->cr3_event))
+    {
         fprintf(stderr, "Failed to register CR3 event\n");
         return 0;
     }
@@ -1227,7 +1363,8 @@ bool init_vmi(drakvuf_t drakvuf) {
     SETUP_MEM_EVENT(&drakvuf->mem_event, ~0ULL, VMI_MEMACCESS_RWX, pre_mem_cb, 1);
     drakvuf->mem_event.data = drakvuf;
 
-    if(VMI_FAILURE == vmi_register_event(drakvuf->vmi, &drakvuf->mem_event)) {
+    if (VMI_FAILURE == vmi_register_event(drakvuf->vmi, &drakvuf->mem_event))
+    {
         fprintf(stderr, "Failed to register generic mem event\n");
         return 0;
     }
@@ -1242,15 +1379,17 @@ bool init_vmi(drakvuf_t drakvuf) {
 
 // -------------------------- closing
 
-void close_vmi(drakvuf_t drakvuf) {
+void close_vmi(drakvuf_t drakvuf)
+{
     PRINT_DEBUG("starting close_vmi_drakvuf\n");
 
     drakvuf_pause(drakvuf);
 
-    if(drakvuf->memaccess_lookup_gfn) {
+    if (drakvuf->memaccess_lookup_gfn)
+    {
         GHashTableIter i;
-        addr_t *key = NULL;
-        struct wrapper *s = NULL;
+        addr_t* key = NULL;
+        struct wrapper* s = NULL;
         ghashtable_foreach(drakvuf->memaccess_lookup_gfn, i, key, s)
         {
             vmi_set_mem_event(drakvuf->vmi, s->memaccess.gfn, VMI_MEMACCESS_N, drakvuf->altp2m_idx);
@@ -1260,34 +1399,39 @@ void close_vmi(drakvuf_t drakvuf) {
         }
     }
 
-    if (drakvuf->vmi) {
+    if (drakvuf->vmi)
+    {
         vmi_destroy(drakvuf->vmi);
         drakvuf->vmi = NULL;
     }
 
-    if(drakvuf->breakpoint_lookup_gfn) {
+    if (drakvuf->breakpoint_lookup_gfn)
+    {
         GHashTableIter i;
-        uint64_t *key = NULL;
-        GSList *list = NULL;
+        uint64_t* key = NULL;
+        GSList* list = NULL;
         ghashtable_foreach(drakvuf->breakpoint_lookup_gfn, i, key, list)
-            g_slist_free(list);
+        g_slist_free(list);
         g_hash_table_destroy(drakvuf->breakpoint_lookup_gfn);
     }
 
-    if(drakvuf->breakpoint_lookup_pa) {
+    if (drakvuf->breakpoint_lookup_pa)
+    {
         GHashTableIter i;
-        addr_t *key = NULL;
-        struct wrapper *s = NULL;
+        addr_t* key = NULL;
+        struct wrapper* s = NULL;
         ghashtable_foreach(drakvuf->breakpoint_lookup_pa, i, key, s)
-            g_slist_free(s->traps);
+        g_slist_free(s->traps);
         g_hash_table_destroy(drakvuf->breakpoint_lookup_pa);
     }
 
-    if(drakvuf->remapped_gfns) {
+    if (drakvuf->remapped_gfns)
+    {
         GHashTableIter i;
-        xen_pfn_t *key;
-        struct remapped_gfn *remapped_gfn = NULL;
-        ghashtable_foreach(drakvuf->remapped_gfns, i, key, remapped_gfn) {
+        xen_pfn_t* key;
+        struct remapped_gfn* remapped_gfn = NULL;
+        ghashtable_foreach(drakvuf->remapped_gfns, i, key, remapped_gfn)
+        {
             xc_altp2m_change_gfn(drakvuf->xen->xc, drakvuf->domID, drakvuf->altp2m_idx, remapped_gfn->o, ~0);
             xc_altp2m_change_gfn(drakvuf->xen->xc, drakvuf->domID, drakvuf->altp2m_idr, remapped_gfn->r, ~0);
             xc_domain_decrease_reservation_exact(drakvuf->xen->xc, drakvuf->domID, 1, 0, &remapped_gfn->r);
@@ -1301,28 +1445,29 @@ void close_vmi(drakvuf_t drakvuf) {
         g_slist_free(drakvuf->cpuid);
     if (drakvuf->memaccess_lookup_gfn)
         g_hash_table_destroy(drakvuf->memaccess_lookup_gfn);
-    if(drakvuf->memaccess_lookup_trap)
+    if (drakvuf->memaccess_lookup_trap)
         g_hash_table_destroy(drakvuf->memaccess_lookup_trap);
-    if(drakvuf->breakpoint_lookup_trap)
+    if (drakvuf->breakpoint_lookup_trap)
         g_hash_table_destroy(drakvuf->breakpoint_lookup_trap);
-    if(drakvuf->remove_traps)
+    if (drakvuf->remove_traps)
         g_hash_table_destroy(drakvuf->remove_traps);
 
     unsigned int i;
-    for (i = 0; i < drakvuf->vcpus; i++) {
+    for (i = 0; i < drakvuf->vcpus; i++)
+    {
         if ( drakvuf->step_event[i] && drakvuf->step_event[i]->data != drakvuf )
             g_free(drakvuf->step_event[i]->data);
         g_free(drakvuf->step_event[i]);
     }
 
     xc_altp2m_switch_to_view(drakvuf->xen->xc, drakvuf->domID, 0);
-    if(drakvuf->altp2m_idx)
+    if (drakvuf->altp2m_idx)
         xc_altp2m_destroy_view(drakvuf->xen->xc, drakvuf->domID, drakvuf->altp2m_idx);
-    if(drakvuf->altp2m_idr)
+    if (drakvuf->altp2m_idr)
         xc_altp2m_destroy_view(drakvuf->xen->xc, drakvuf->domID, drakvuf->altp2m_idr);
     xc_altp2m_set_domain_state(drakvuf->xen->xc, drakvuf->domID, 0);
 
-    if(drakvuf->zero_page_gfn)
+    if (drakvuf->zero_page_gfn)
         xc_domain_decrease_reservation_exact(drakvuf->xen->xc, drakvuf->domID, 1, 0, &drakvuf->zero_page_gfn);
     xc_domain_setmaxmem(drakvuf->xen->xc, drakvuf->domID, drakvuf->init_memsize);
 

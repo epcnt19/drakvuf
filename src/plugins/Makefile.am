@@ -150,6 +150,10 @@ if PLUGIN_SOCKETMON
 sources += socketmon/socketmon.cpp
 endif
 
+if PLUGIN_REGMON
+sources += regmon/regmon.cpp
+endif
+
 ###############################################################################
 sources += plugins.cpp plugins.h
 

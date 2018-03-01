@@ -109,12 +109,15 @@
  * Easy-to-use structure offsets to be loaded from the Rekall profile.
  * Define actual mapping in linux-offsets-map.h
  */
-enum linux_offsets {
+enum linux_offsets
+{
     CURRENT_TASK,
     TASK_STRUCT_COMM,
     TASK_STRUCT_CRED,
     TASK_STRUCT_PID,
     TASK_STRUCT_TGID,
+    TASK_STRUCT_REALPARENT,
+    TASK_STRUCT_PARENT,
     CRED_UID,
 
     __LINUX_OFFSETS_MAX

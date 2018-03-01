@@ -108,12 +108,15 @@
 /*
  * Map offset enums to actual structure+member or global variable/function names.
  */
-static const char *linux_offset_names[__LINUX_OFFSETS_MAX][2] = {
+static const char* linux_offset_names[__LINUX_OFFSETS_MAX][2] =
+{
     [CURRENT_TASK] = {"current_task", NULL},
     [TASK_STRUCT_COMM] = {"task_struct", "comm"},
     [TASK_STRUCT_CRED] = {"task_struct", "cred"},
     [TASK_STRUCT_PID] = {"task_struct", "pid"},
     [TASK_STRUCT_TGID] = {"task_struct", "tgid"},
+    [TASK_STRUCT_REALPARENT] = {"task_struct", "real_parent"},
+    [TASK_STRUCT_PARENT] = {"task_struct", "parent"},
     [CRED_UID] = {"cred", "uid"},
 };
 

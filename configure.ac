@@ -113,10 +113,6 @@ AC_PROG_CC_STDC
 AC_PROG_CXX(clang++)
 AX_CXX_COMPILE_STDCXX_11
 
-if test x$CXX != xclang++; then
-    AC_ERROR([No clang++ found on your system, please install clang!])
-fi
-
 ######################################################
 
 AC_ARG_ENABLE([plugin_msrmon],
@@ -227,6 +223,16 @@ AC_ARG_ENABLE([plugin_socketmon],
 AM_CONDITIONAL([PLUGIN_SOCKETMON], [test x$plugin_socketmon = xyes])
 if test x$plugin_socketmon = xyes; then
   AC_DEFINE_UNQUOTED(ENABLE_PLUGIN_SOCKETMON, 1, "")
+fi
+
+AC_ARG_ENABLE([plugin_regmon],
+  [AS_HELP_STRING([--disable-plugin-regmon],
+    [Enable the windows registry watching plugin @<:@yes@:>@])],
+  [plugin_regmon="$enableval"],
+  [plugin_regmon="yes"])
+AM_CONDITIONAL([PLUGIN_REGMON], [test x$plugin_regmon = xyes])
+if test x$plugin_regmon = xyes; then
+  AC_DEFINE_UNQUOTED(ENABLE_PLUGIN_REGMON, 1, "")
 fi
 
 #####################################################
@@ -395,6 +401,6 @@ SSDTmon:    $plugin_ssdtmon
 CPUIDmon:   $plugin_cpuidmon
 Debugmon:   $plugin_debugmon
 Socketmon:  $plugin_socketmon
-
 MSRmon:   $plugin_msrmon
+Regmon:     $plugin_regmon
 -------------------------------------------------------------------------------])

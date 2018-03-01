@@ -109,7 +109,8 @@
  * Easy-to-use structure offsets to be loaded from the Rekall profile.
  * Define actual mapping in win-offsets-map.h
  */
-enum win_offsets {
+enum win_offsets
+{
     KIINITIALPCR,
 
     EPROCESS_PID,
@@ -119,6 +120,7 @@ enum win_offsets {
     EPROCESS_PEB,
     EPROCESS_OBJECTTABLE,
     EPROCESS_PCB,
+    EPROCESS_INHERITEDPID,
 
     KPROCESS_HEADER,
 
@@ -155,10 +157,18 @@ enum win_offsets {
 
     DISPATCHER_TYPE,
 
+    CM_KEY_CONTROL_BLOCK,
+    CM_KEY_NAMEBLOCK,
+    CM_KEY_NAMEBUFFER,
+    CM_KEY_NAMELENGTH,
+    CM_KEY_PARENTKCB,
+    CM_KEY_PROCESSID,
+
     __WIN_OFFSETS_MAX
 };
 
-enum win_sizes {
+enum win_sizes
+{
     HANDLE_TABLE_ENTRY,
 
     __WIN_SIZES_MAX

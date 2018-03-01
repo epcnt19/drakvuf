@@ -108,7 +108,8 @@
 /*
  * Map offset enums to actual structure+member or global variable/function names.
  */
-static const char *win_offset_names[__WIN_OFFSETS_MAX][2] = {
+static const char* win_offset_names[__WIN_OFFSETS_MAX][2] =
+{
     [KIINITIALPCR] = { "KiInitialPCR", NULL },
     [EPROCESS_PID] = { "_EPROCESS", "UniqueProcessId" },
     [EPROCESS_PDBASE] = { "_KPROCESS", "DirectoryTableBase" },
@@ -117,6 +118,7 @@ static const char *win_offset_names[__WIN_OFFSETS_MAX][2] = {
     [EPROCESS_PEB] = { "_EPROCESS", "Peb" },
     [EPROCESS_OBJECTTABLE] = {"_EPROCESS", "ObjectTable" },
     [EPROCESS_PCB] = { "_EPROCESS", "Pcb" },
+    [EPROCESS_INHERITEDPID] = { "_EPROCESS", "InheritedFromUniqueProcessId" },
     [KPROCESS_HEADER] = { "_KPROCESS", "Header" },
     [PEB_IMAGEBASADDRESS] = { "_PEB", "ImageBaseAddress" },
     [PEB_LDR] = { "_PEB", "Ldr" },
@@ -141,6 +143,13 @@ static const char *win_offset_names[__WIN_OFFSETS_MAX][2] = {
     [POOL_HEADER_POOLTYPE] = {"_POOL_HEADER", "PoolType" },
     [POOL_HEADER_POOLTAG] = {"_POOL_HEADER", "PoolTag" },
     [DISPATCHER_TYPE] = { "_DISPATCHER_HEADER",  "Type" },
+
+    [CM_KEY_CONTROL_BLOCK] = { "_CM_KEY_BODY",           "KeyControlBlock" },
+    [CM_KEY_NAMEBLOCK]     = { "_CM_KEY_CONTROL_BLOCK",  "NameBlock"       },
+    [CM_KEY_NAMEBUFFER]    = { "_CM_NAME_CONTROL_BLOCK", "Name"            },
+    [CM_KEY_NAMELENGTH]    = { "_CM_NAME_CONTROL_BLOCK", "NameLength"      },
+    [CM_KEY_PARENTKCB]     = { "_CM_KEY_CONTROL_BLOCK",  "ParentKcb"       },
+    [CM_KEY_PROCESSID]     = { "_CM_KEY_BODY",           "ProcessID"       },
 };
 
 #endif

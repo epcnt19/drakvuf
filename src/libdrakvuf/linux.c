@@ -119,12 +119,16 @@
 #include "linux-offsets.h"
 #include "linux-offsets-map.h"
 
-static bool find_kernbase(drakvuf_t drakvuf) {
-    drakvuf->kernbase = vmi_translate_ksym2v(drakvuf->vmi, "_text");
+static bool find_kernbase(drakvuf_t drakvuf)
+{
+    if ( VMI_FAILURE == vmi_translate_ksym2v(drakvuf->vmi, "_text", &drakvuf->kernbase) )
+        return 0;
+
     return !!drakvuf->kernbase;
 }
 
-bool set_os_linux(drakvuf_t drakvuf) {
+bool set_os_linux(drakvuf_t drakvuf)
+{
     if ( !find_kernbase(drakvuf) )
         return 0;
 
@@ -140,6 +144,8 @@ bool set_os_linux(drakvuf_t drakvuf) {
     drakvuf->osi.get_current_process_userid = linux_get_current_process_userid;
     drakvuf->osi.get_current_thread_id = linux_get_current_thread_id;
     drakvuf->osi.get_process_pid = linux_get_process_pid;
+    drakvuf->osi.get_process_ppid = linux_get_process_ppid;
+    drakvuf->osi.get_current_process_data = linux_get_current_process_data;
 
     return 1;
 }
