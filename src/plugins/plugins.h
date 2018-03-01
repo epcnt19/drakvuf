@@ -166,7 +166,7 @@ static const char* drakvuf_plugin_names[] =
     [PLUGIN_DEBUGMON] = "debugmon",
     [PLUGIN_CPUIDMON] = "cpuidmon",
     [PLUGIN_SOCKETMON] = "socketmon",
-	[PLUGIN_MSRMON] = "msrmon"
+	[PLUGIN_MSRMON] = "msrmon",
     [PLUGIN_REGMON] = "regmon",
 };
 
