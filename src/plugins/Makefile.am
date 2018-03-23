@@ -106,10 +106,6 @@ sources =
 
 ###############################################################################
 
-if PLUGIN_IDTMON
-sources += idtmon/idtmon.cpp
-endif
-
 if PLUGIN_SYSCALLS
 sources += syscalls/syscalls.cpp
 endif
@@ -153,6 +149,15 @@ endif
 if PLUGIN_REGMON
 sources += regmon/regmon.cpp
 endif
+
+if PLUGIN_MSRMON
+sources += msrmon/msrmon.cpp
+endif
+
+if PLUGIN_IDTMON
+sources += idtmon/idtmon.cpp
+endif
+
 
 ###############################################################################
 sources += plugins.cpp plugins.h

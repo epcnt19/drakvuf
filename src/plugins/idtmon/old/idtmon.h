@@ -10,9 +10,9 @@ public:
 		output_format_t format;
 		drakvuf_t drakvuf;
 		
-		drakvuf_trap_t write_idt;
-		os_t os;
-
+		drakvuf_trap_t idtwrite;
+		drakvuf_trap_t idtwrite2;
+		
 		addr_t idtr_base;
 		uint64_t idtr_limit;
 		uint8_t reg_size;
