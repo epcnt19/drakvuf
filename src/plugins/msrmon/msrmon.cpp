@@ -22,41 +22,38 @@
 event_response_t sysenter_cb(drakvuf_t drakvuf,drakvuf_trap_info_t* info){
 	msrmon* s = (msrmon*)info->trap->data;
 	addr_t ntoskrnl = drakvuf_get_kernel_base(drakvuf);
-	addr_t reg_rva_32bit,reg_rva_64bit;	
+	addr_t rva;
 
 	if(4 == s->reg_size){
-		reg_rva_32bit = info->regs->msr_lstar - ntoskrnl;
+		rva = info->regs->sysenter_eip - ntoskrnl;
 				
-		if(reg_rva_32bit != s->rekall_rva_32bit){
-			printf("[DETECTION] hooking address 0x%" PRIx32 "\n",info->regs->msr_lstar);
-		
+		if(rva != s->rva){
 			switch(s->format){
 				case OUTPUT_CSV:
-					printf("[MSR] msr,%" PRIu32 ",0x%" PRIx32 ",0x%" PRIx32 ",0x%" PRIx32 ",%s,%" PRIi32 "\n",info->vcpu,info->regs->cr3,info->regs->msr_lstar,reg_rva_32bit,info->proc_data.name,info->proc_data.userid);
+					printf("msr,%" PRIu32 ",0x%" PRIx32 ",0x%" PRIx32 ",0x%" PRIx32 "\n",info->vcpu,info->regs->cr3,info->regs->sysenter_eip,rva);
 				break;
 				default:
 				case OUTPUT_DEFAULT:
-					printf("[MSR] VCPU:%" PRIu32 " CR3:0x%" PRIx32 ",MSRs LSTAR:0x%" PRIx32 ",RVA:0x%" PRIx32 ",%s,%" PRIi32 "\n",info->vcpu,info->regs->cr3,info->regs->msr_lstar,reg_rva_32bit,info->proc_data.name,info->proc_data.userid);
+					printf("[MSR] VCPU:%" PRIu32 " CR3:0x%" PRIx32 ",SYSENTER_EIP:0x%" PRIx32 ",RVA:0x%" PRIx32 "\n",info->vcpu,info->regs->cr3,info->regs->sysenter_eip,rva);
 				break;
 			};
 		}
 
-	}else if(8 == s->reg_size){
-		reg_rva_64bit = info->regs->msr_lstar - ntoskrnl;
+	}
 
-		if(reg_rva_64bit != s->rekall_rva_64bit){
-			printf("[DETECTION] hooking address 0x%" PRIx64 "\n",info->regs->msr_lstar);
-			
+	if(8 == s->reg_size){
+		rva = info->regs->msr_lstar - ntoskrnl;
+
+		if(rva != s->rva){
 			switch(s->format){
 				case OUTPUT_CSV:
-					printf("msr,%" PRIu32 ",0x%" PRIx64 ",0x%" PRIx64 ",0x%" PRIx64 ",%s,%" PRIi64 "\n",info->vcpu,info->regs->cr3,info->regs->msr_lstar,reg_rva_64bit,info->proc_data.name,info->proc_data.userid);
+					printf("msr,%" PRIu32 ",0x%" PRIx64 ",0x%" PRIx64 ",0x%" PRIx64 "\n",info->vcpu,info->regs->cr3,info->regs->msr_lstar,rva);
 				break;
 				default:
 				case OUTPUT_DEFAULT:
-					printf("[MSR] VCPU:%" PRIu32 " CR3:0x%" PRIx64 ",MSRs LSTAR:0x%" PRIx64 ",RVA:0x%" PRIx64 ",%s,%" PRIi64 "\n",info->vcpu,info->regs->cr3,info->regs->msr_lstar,reg_rva_64bit,info->proc_data.name,info->proc_data.userid);
+					printf("[MSR] VCPU:%" PRIu32 " CR3:0x%" PRIx64 ",MSR_LSTAR:0x%" PRIx64 ",RVA:0x%" PRIx64 "\n",info->vcpu,info->regs->cr3,info->regs->msr_lstar,rva);
 				break;
 			};
-
 		}
 	}
 
@@ -66,30 +63,34 @@ event_response_t sysenter_cb(drakvuf_t drakvuf,drakvuf_trap_info_t* info){
 
 msrmon::msrmon(drakvuf_t drakvuf, const void *config, output_format_t output) {
     const char *rekall_profile = (const char*)config;
-
+	
 	this->format = output;
 	this->drakvuf = drakvuf;
 	this->sysenter.cb = sysenter_cb;
-	this->sysenter.data = (void*)this;
-	this->sysenter.reg = CR3;
-	this->sysenter.type = REGISTER;
-	
+	this->sysenter.data = (void *)this;
+	this->sysenter.type = BREAKPOINT;
+	this->sysenter.name = "KiFastCallEntry";
+	this->sysenter.breakpoint.lookup_type = LOOKUP_PID;
+	this->sysenter.breakpoint.pid = 4;
+	this->sysenter.breakpoint.addr_type = ADDR_VA;
+	this->sysenter.breakpoint.module = "ntoskrnl.exe";
+
 	vmi_instance_t vmi = drakvuf_lock_and_get_vmi(drakvuf);
 	this->reg_size = vmi_get_address_width(vmi);
-	drakvuf_release_vmi(drakvuf);
-
-	if(!drakvuf_get_function_rva(rekall_profile,"KiSystemCall64",&this->rekall_rva_64bit)){
+	addr_t ntoskrnl = drakvuf_get_kernel_base(drakvuf);
+	
+	if(!drakvuf_get_function_rva(rekall_profile,"KiFastCallEntry",&this->rva)){
 		throw -1;
 	}
-
-	if(!drakvuf_get_function_rva(rekall_profile,"KiSystemCall32",&this->rekall_rva_32bit)){
-		throw -1;
-	}
+	
+	this->sysenter.breakpoint.addr = ntoskrnl + this->rva;
 
 	if(!drakvuf_add_trap(drakvuf,&this->sysenter)){
-		fprintf(stderr,"Failed to register SYSCALL plugin\n");
+		fprintf(stderr,"Failed to MSR plugin\n");
 		throw -1;
 	}
+
+	drakvuf_release_vmi(drakvuf);
 }
 
 msrmon::~msrmon() {}

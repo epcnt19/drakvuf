@@ -186,7 +186,7 @@ static const bool drakvuf_plugin_os_support[__DRAKVUF_PLUGIN_LIST_MAX][VMI_OS_WI
     [PLUGIN_SOCKETMON]     = { [VMI_OS_WINDOWS] = 1, [VMI_OS_LINUX] = 0 },
     [PLUGIN_REGMON]     = { [VMI_OS_WINDOWS] = 1, [VMI_OS_LINUX] = 0 },
 	[PLUGIN_MSRMON]     = { [VMI_OS_WINDOWS] = 1, [VMI_OS_LINUX] = 0 },
- 	[PLUGIN_IDTMON]     = { [VMI_OS_WINDOWS] = 0, [VMI_OS_LINUX] = 1 },
+ 	[PLUGIN_IDTMON]     = { [VMI_OS_WINDOWS] = 0, [VMI_OS_LINUX] = 0 },
 };
 
 class plugin

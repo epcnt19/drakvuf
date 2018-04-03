@@ -9,8 +9,7 @@ class msrmon: public plugin {
         output_format_t format;
 		drakvuf_trap_t sysenter;
 		drakvuf_t drakvuf;
-		addr_t rekall_rva_32bit;
-		addr_t rekall_rva_64bit;	
+		addr_t rva;
 		uint8_t reg_size;
 
         msrmon(drakvuf_t drakvuf, const void *config, output_format_t output);
