@@ -80,13 +80,14 @@ msrmon::msrmon(drakvuf_t drakvuf, const void *config, output_format_t output) {
 	addr_t ntoskrnl = drakvuf_get_kernel_base(drakvuf);
 	
 	if(!drakvuf_get_function_rva(rekall_profile,"KiFastCallEntry",&this->rva)){
+		fprintf(stderr,"failed to drakvuf_get_function_rva\n");
 		throw -1;
 	}
 	
 	this->sysenter.breakpoint.addr = ntoskrnl + this->rva;
 
 	if(!drakvuf_add_trap(drakvuf,&this->sysenter)){
-		fprintf(stderr,"Failed to MSR plugin\n");
+		fprintf(stderr,"failed to drakvuf_add_trap\n");
 		throw -1;
 	}
 
